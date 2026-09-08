@@ -107,6 +107,9 @@ class SettingsSyncCard(util: SettingsUtil) : SettingsCard(util) {
                     item.subTextChecked = activity.getSyncInterval(configGlobal.sync.interval)
                     item.isChecked = true
                     item.onCheckedChangedAction.onCheckedChanged(item, true)
+                    // onChange returns early when the value is unchanged,
+                    // so apply the new interval to the scheduled work here
+                    SyncWorker.rescheduleNext(app)
                     if (configGlobal.sync.enabled)
                         util.refresh()
                 }).show()

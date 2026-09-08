@@ -1,60 +1,73 @@
 package pl.szczodrzynski.edziennik.core.work
 
-import android.annotation.SuppressLint
 import android.content.Context
 import androidx.work.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.data.api.edziennik.EdziennikTask
-import pl.szczodrzynski.edziennik.ext.formatDate
+import pl.szczodrzynski.edziennik.data.api.events.UserActionRequiredEvent
+import pl.szczodrzynski.edziennik.data.api.interfaces.EdziennikCallback
+import pl.szczodrzynski.edziennik.data.api.models.ApiError
+import pl.szczodrzynski.edziennik.data.api.task.SzkolnyTask
+import pl.szczodrzynski.edziennik.data.db.entity.Profile
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
-class SyncWorker(val context: Context, val params: WorkerParameters) : Worker(context, params) {
+/**
+ * Periodic background synchronization.
+ *
+ * The sync is run *inside* the worker, instead of delegating it to [ApiService].
+ * Starting a foreground service from the background is not allowed since Android 12,
+ * and running a WorkManager job is not one of the exemptions - the service start
+ * would throw, aborting the sync entirely. [ApiService] is still used for
+ * user-triggered syncs, where the app is in the foreground.
+ */
+class SyncWorker(val context: Context, val params: WorkerParameters) : CoroutineWorker(context, params) {
     companion object {
         const val TAG = "SyncWorker"
 
-        /**
-         * Schedule the sync job only if it's not already scheduled.
-         */
-        @SuppressLint("RestrictedApi")
-        fun scheduleNext(app: App, rescheduleIfFailedFound: Boolean = true) {
-            WorkerUtils.scheduleNext(app, rescheduleIfFailedFound) {
-                rescheduleNext(app)
-            }
-        }
+        /** A single task (one profile) may not take longer than this. */
+        private const val TASK_TIMEOUT = 10 * 60 * 1000L
 
         /**
-         * Cancel any existing sync jobs and schedule a new one.
+         * Schedule the periodic sync job, keeping the existing schedule if there is one.
+         */
+        fun scheduleNext(app: App) = enqueue(app, ExistingPeriodicWorkPolicy.KEEP)
+
+        /**
+         * Schedule the periodic sync job, applying the current [ConfigSync] settings
+         * to a job that is already scheduled.
          *
          * If [ConfigSync.enabled] is not true, just cancel every job.
          */
-        fun rescheduleNext(app: App) {
-            cancelNext(app)
-            val enableSync = app.config.sync.enabled
-            if (!enableSync) {
+        fun rescheduleNext(app: App) = enqueue(app, ExistingPeriodicWorkPolicy.UPDATE)
+
+        private fun enqueue(app: App, policy: ExistingPeriodicWorkPolicy) {
+            if (!app.config.sync.enabled) {
+                cancelNext(app)
                 return
             }
-            val onlyWifi = app.config.sync.onlyWifi
-            val syncInterval = app.config.sync.interval.toLong()
 
-            val syncAt = System.currentTimeMillis() + syncInterval*1000
-            Timber.d("Scheduling work at ${syncAt.formatDate()}")
+            // WorkManager enforces a 15-minute minimum; the UI offers 30 minutes upwards
+            val syncInterval = app.config.sync.interval.toLong()
+            Timber.d("Scheduling periodic work every $syncInterval seconds (policy = $policy)")
 
             val constraints = Constraints.Builder()
                     .setRequiredNetworkType(
-                            if (onlyWifi)
+                            if (app.config.sync.onlyWifi)
                                 NetworkType.UNMETERED
                             else
                                 NetworkType.CONNECTED)
                     .build()
 
-            val syncWorkRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-                    .setInitialDelay(syncInterval, TimeUnit.SECONDS)
+            val syncWorkRequest = PeriodicWorkRequestBuilder<SyncWorker>(syncInterval, TimeUnit.SECONDS)
                     .setConstraints(constraints)
+                    .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                     .addTag(TAG)
                     .build()
 
-            WorkManager.getInstance(app).enqueue(syncWorkRequest)
+            WorkManager.getInstance(app).enqueueUniquePeriodicWork(TAG, policy, syncWorkRequest)
         }
 
         /**
@@ -62,15 +75,89 @@ class SyncWorker(val context: Context, val params: WorkerParameters) : Worker(co
          */
         fun cancelNext(app: App) {
             Timber.d("Cancelling work by tag $TAG")
+            // by tag, so that the legacy chain of one-time requests is cancelled as well
             WorkManager.getInstance(app).cancelAllWorkByTag(TAG)
-            //WorkManager.getInstance(app).pruneWork() // do not prune the work in order to look for failed tasks
         }
     }
 
-    override fun doWork(): Result {
+    private val app by lazy { applicationContext as App }
+
+    override suspend fun doWork(): Result {
         Timber.d("Running worker ID ${params.id}")
-        EdziennikTask.sync().enqueue(context)
-        rescheduleNext(context as App)
-        return Result.success()
+        if (!app.config.sync.enabled) {
+            cancelNext(app)
+            return Result.success()
+        }
+
+        return try {
+            syncAllProfiles()
+            Result.success()
+        } catch (e: Exception) {
+            Timber.e(e, "Background sync failed")
+            Result.retry()
+        }
+    }
+
+    /**
+     * Run a sync task for every profile, then create and post the notifications.
+     *
+     * This mirrors [ApiService.runTask], without the progress notification
+     * and the EventBus updates - nobody is watching them in the background.
+     */
+    private suspend fun syncAllProfiles() {
+        val syncingProfiles = mutableListOf<Profile>()
+
+        for (profileId in app.db.profileDao().idsForSyncNow) {
+            val task = EdziennikTask.syncProfile(profileId)
+            task.prepare(app)
+            task.profile?.let { syncingProfiles += it }
+            Timber.d("Syncing profile $profileId")
+            awaitTask({ callback -> task.run(app, callback) }, onTimeout = { task.cancel() })
+        }
+
+        val szkolnyTask = SzkolnyTask(app, syncingProfiles)
+        szkolnyTask.prepare(app)
+        awaitTask({ callback -> szkolnyTask.run(callback) })
+    }
+
+    /**
+     * Start a task and suspend until its callback reports completion,
+     * a critical error, or [TASK_TIMEOUT] passes.
+     */
+    private suspend fun awaitTask(block: (EdziennikCallback) -> Unit, onTimeout: () -> Unit = {}) {
+        val finished = CompletableDeferred<Unit>()
+
+        val callback = object : EdziennikCallback {
+            override fun onCompleted() {
+                finished.complete(Unit)
+            }
+
+            override fun onRequiresUserAction(event: UserActionRequiredEvent) {
+                app.userActionManager.sendToUser(event)
+                finished.complete(Unit)
+            }
+
+            override fun onError(apiError: ApiError) {
+                Timber.e(apiError.throwable, "Sync error: $apiError")
+                // non-critical errors do not stop the task
+                if (apiError.isCritical)
+                    finished.complete(Unit)
+            }
+
+            override fun onProgress(step: Float) {}
+            override fun onStartProgress(stringRes: Int) {}
+        }
+
+        try {
+            block(callback)
+        } catch (e: Exception) {
+            Timber.e(e, "Task threw an exception")
+            return
+        }
+
+        if (withTimeoutOrNull(TASK_TIMEOUT) { finished.await() } == null) {
+            Timber.e("Task timed out after $TASK_TIMEOUT ms")
+            onTimeout()
+        }
     }
 }

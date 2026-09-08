@@ -71,6 +71,11 @@ private static def getLastTag(Repository repo, Git git, Ref head) {
         revCount++
     }
 
+    // a fork may have no tags at all - fall back to the declared version name
+    if (!commitTags) {
+        return [head.getObjectId().name, "untagged", revCount]
+    }
+
     return commitTags.last()
 }
 

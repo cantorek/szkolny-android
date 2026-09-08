@@ -53,7 +53,7 @@ class Config(app: App) : BaseConfig<Config>(app, profileId = null) {
     var devModePassword by config<String?>(null)
     var enableChucker by config<Boolean?>(null)
 
-    var apiAvailabilityCheck by config<Boolean>(true)
+    var apiAvailabilityCheck by config<Boolean>(false)
     var apiInvalidCert by config<String?>(null)
     var apiKeyCustom by config<String?>(null)
     var appInstalledTime by config<Long>(0L)

@@ -5,11 +5,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -44,7 +47,6 @@ import org.greenrobot.eventbus.ThreadMode
 import pl.droidsonroids.gif.GifDrawable
 import pl.szczodrzynski.edziennik.core.manager.AvailabilityManager.Error.Type
 import pl.szczodrzynski.edziennik.core.manager.UserActionManager
-import pl.szczodrzynski.edziennik.core.work.AppManagerDetectedEvent
 import pl.szczodrzynski.edziennik.core.work.SyncWorker
 import pl.szczodrzynski.edziennik.core.work.UpdateStateEvent
 import pl.szczodrzynski.edziennik.core.work.UpdateWorker
@@ -99,7 +101,6 @@ import pl.szczodrzynski.edziennik.ui.timetable.TimetableFragment
 import pl.szczodrzynski.edziennik.utils.BigNightUtil
 import pl.szczodrzynski.edziennik.utils.PausedNavigationData
 import pl.szczodrzynski.edziennik.utils.Utils
-import pl.szczodrzynski.edziennik.utils.appManagerIntentList
 import pl.szczodrzynski.edziennik.utils.models.Date
 import pl.szczodrzynski.navlib.NavView
 import pl.szczodrzynski.navlib.bottomsheet.NavBottomSheet
@@ -301,6 +302,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
         SyncWorker.scheduleNext(app)
         UpdateWorker.scheduleNext(app)
+        checkBatteryOptimization()
 
         // if loaded profile is archived, switch to the up-to-date version of it
         if (app.profile.archived) {
@@ -619,26 +621,36 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         errorSnackbar.addError(event.error).show()
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
-    fun onAppManagerDetectedEvent(event: AppManagerDetectedEvent) {
-        EventBus.getDefault().removeStickyEvent(event)
-        if (app.config.sync.dontShowAppManagerDialog)
+    /**
+     * Warn if the system may throttle background sync.
+     *
+     * Checked on every start, so that revoking the exemption is caught as well.
+     * The permission is declared only in the play-not manifest, so on the Play
+     * flavour the intent simply fails to resolve and the fallback is used.
+     */
+    @SuppressLint("BatteryLife")
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
             return
+        if (!app.config.sync.enabled || app.config.sync.dontShowAppManagerDialog)
+            return
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (powerManager.isIgnoringBatteryOptimizations(packageName))
+            return
+
         SimpleDialog<Unit>(this) {
             title(R.string.app_manager_dialog_title)
             message(R.string.app_manager_dialog_text)
             positive(R.string.ok) {
                 try {
-                    for (intent in appManagerIntentList) {
-                        if (packageManager.resolveActivity(intent,
-                                PackageManager.MATCH_DEFAULT_ONLY) != null
-                        ) {
-                            startActivity(intent)
-                        }
-                    }
+                    startActivity(Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName")
+                    ))
                 } catch (e: Exception) {
+                    Timber.e(e)
                     try {
-                        startActivity(Intent(Settings.ACTION_SETTINGS))
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     } catch (e: Exception) {
                         Timber.e(e)
                         Toast.makeText(this@MainActivity, R.string.app_manager_open_failed, Toast.LENGTH_SHORT)
@@ -649,7 +661,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             neutral(R.string.dont_ask_again) {
                 app.config.sync.dontShowAppManagerDialog = true
             }
-            cancelable(false)
         }.show()
     }
 

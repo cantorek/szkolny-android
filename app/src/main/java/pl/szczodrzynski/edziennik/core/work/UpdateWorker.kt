@@ -4,7 +4,6 @@
 
 package pl.szczodrzynski.edziennik.core.work
 
-import android.annotation.SuppressLint
 import android.content.Context
 import androidx.work.*
 import kotlinx.coroutines.*
@@ -12,8 +11,6 @@ import pl.szczodrzynski.edziennik.*
 import pl.szczodrzynski.edziennik.data.api.szkolny.response.Update
 import pl.szczodrzynski.edziennik.ext.DAY
 import pl.szczodrzynski.edziennik.ext.HOUR
-import pl.szczodrzynski.edziennik.ext.formatDate
-import pl.szczodrzynski.edziennik.utils.Utils
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
@@ -23,23 +20,21 @@ class UpdateWorker(val context: Context, val params: WorkerParameters) : Worker(
         const val TAG = "UpdateWorker"
 
         /**
-         * Schedule the sync job only if it's not already scheduled.
+         * Schedule the periodic update check, keeping the existing schedule if there is one.
          */
-        @SuppressLint("RestrictedApi")
-        fun scheduleNext(app: App, rescheduleIfFailedFound: Boolean = true) {
-            WorkerUtils.scheduleNext(app, rescheduleIfFailedFound) {
-                rescheduleNext(app)
-            }
-        }
+        fun scheduleNext(app: App) = enqueue(app, ExistingPeriodicWorkPolicy.KEEP)
 
         /**
-         * Cancel any existing sync jobs and schedule a new one.
+         * Schedule the periodic update check, applying the current settings
+         * to a job that is already scheduled.
          *
-         * If [ConfigSync.enabled] is not true, just cancel every job.
+         * If [ConfigSync.notifyAboutUpdates] is not true, just cancel every job.
          */
-        fun rescheduleNext(app: App) {
-            cancelNext(app)
+        fun rescheduleNext(app: App) = enqueue(app, ExistingPeriodicWorkPolicy.UPDATE)
+
+        private fun enqueue(app: App, policy: ExistingPeriodicWorkPolicy) {
             if (!app.config.sync.notifyAboutUpdates) {
+                cancelNext(app)
                 return
             }
             val syncInterval =
@@ -48,27 +43,26 @@ class UpdateWorker(val context: Context, val params: WorkerParameters) : Worker(
                 else
                     4 * DAY
 
-            val syncAt = System.currentTimeMillis() + syncInterval*1000
-            Timber.d("Scheduling work at ${syncAt.formatDate()}")
+            Timber.d("Scheduling periodic work every $syncInterval seconds (policy = $policy)")
 
             val constraints = Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build()
 
-            val syncWorkRequest = OneTimeWorkRequestBuilder<UpdateWorker>()
-                    .setInitialDelay(syncInterval, TimeUnit.SECONDS)
+            val syncWorkRequest = PeriodicWorkRequestBuilder<UpdateWorker>(syncInterval, TimeUnit.SECONDS)
                     .setConstraints(constraints)
                     .addTag(TAG)
                     .build()
 
-            WorkManager.getInstance(app).enqueue(syncWorkRequest)
+            WorkManager.getInstance(app).enqueueUniquePeriodicWork(TAG, policy, syncWorkRequest)
         }
 
         /**
-         * Cancel any scheduled sync job.
+         * Cancel any scheduled update check job.
          */
         fun cancelNext(app: App) {
             Timber.d("Cancelling work by tag $TAG")
+            // by tag, so that the legacy chain of one-time requests is cancelled as well
             WorkManager.getInstance(app).cancelAllWorkByTag(TAG)
         }
     }
@@ -90,7 +84,6 @@ class UpdateWorker(val context: Context, val params: WorkerParameters) : Worker(
             Update.Type.RELEASE
         app.updateManager.checkNowSync(channel, notify = true)
 
-        rescheduleNext(this.context)
         return Result.success()
     }
 }
