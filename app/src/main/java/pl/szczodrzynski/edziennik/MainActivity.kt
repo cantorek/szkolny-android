@@ -2,13 +2,16 @@ package pl.szczodrzynski.edziennik
 
 import android.app.ActivityManager
 import android.content.BroadcastReceiver
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -50,7 +53,6 @@ import pl.szczodrzynski.edziennik.data.db.entity.Profile
 import pl.szczodrzynski.edziennik.data.db.enums.FeatureType
 import pl.szczodrzynski.edziennik.databinding.ActivitySzkolnyBinding
 import pl.szczodrzynski.edziennik.ext.*
-import pl.szczodrzynski.edziennik.sync.AppManagerDetectedEvent
 import pl.szczodrzynski.edziennik.sync.SyncWorker
 import pl.szczodrzynski.edziennik.sync.UpdateStateEvent
 import pl.szczodrzynski.edziennik.sync.UpdateWorker
@@ -318,6 +320,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
         SyncWorker.scheduleNext(app)
         UpdateWorker.scheduleNext(app)
+        checkBatteryOptimization()
 
         // if loaded profile is archived, switch to the up-to-date version of it
         if (app.profile.archived) {
@@ -648,26 +651,35 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         errorSnackbar.addError(event.error).show()
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
-    fun onAppManagerDetectedEvent(event: AppManagerDetectedEvent) {
-        EventBus.getDefault().removeStickyEvent(event)
-        if (app.config.sync.dontShowAppManagerDialog)
+    /**
+     * Warn if the system may throttle background sync.
+     *
+     * Checked on every start, so that revoking the exemption is caught as well.
+     * The permission is declared only in the play-not manifest, so on the Play
+     * flavour the intent simply fails to resolve and the fallback is used.
+     */
+    @SuppressLint("BatteryLife")
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
             return
+        if (!app.config.sync.enabled || app.config.sync.dontShowAppManagerDialog)
+            return
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (powerManager.isIgnoringBatteryOptimizations(packageName))
+            return
+
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.app_manager_dialog_title)
             .setMessage(R.string.app_manager_dialog_text)
             .setPositiveButton(R.string.ok) { _, _ ->
                 try {
-                    for (intent in appManagerIntentList) {
-                        if (packageManager.resolveActivity(intent,
-                                PackageManager.MATCH_DEFAULT_ONLY) != null
-                        ) {
-                            startActivity(intent)
-                        }
-                    }
+                    startActivity(Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName")
+                    ))
                 } catch (e: Exception) {
                     try {
-                        startActivity(Intent(Settings.ACTION_SETTINGS))
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     } catch (e: Exception) {
                         e.printStackTrace()
                         Toast.makeText(this, R.string.app_manager_open_failed, Toast.LENGTH_SHORT)
@@ -678,7 +690,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             .setNeutralButton(R.string.dont_ask_again) { _, _ ->
                 app.config.sync.dontShowAppManagerDialog = true
             }
-            .setCancelable(false)
             .show()
     }
 

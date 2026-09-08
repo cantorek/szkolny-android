@@ -35,11 +35,14 @@ class SzkolnyTask(val app: App, val syncingProfiles: List<Profile>) : IApiTask(-
         // App Sync conditions:
         //    - every 24 hours && any profile is registered
         //    - if there are new notifications && any browser is paired
-        val shouldAppSync =
+        // an unsigned build has no access to api.szkolny.eu - ApiCacheInterceptor
+        // short-circuits every request with a local 401, so skip it entirely
+        // instead of failing the sync with an error notification
+        val shouldAppSync = app.buildManager.isSigned && (
                 System.currentTimeMillis() - app.config.sync.lastAppSync > 24* HOUR *1000
                         && appSyncProfiles.isNotEmpty()
                         || notificationList.isNotEmpty()
-                        && app.config.sync.webPushEnabled
+                        && app.config.sync.webPushEnabled)
 
         if (shouldAppSync) {
             // send notifications to web push, get shared events

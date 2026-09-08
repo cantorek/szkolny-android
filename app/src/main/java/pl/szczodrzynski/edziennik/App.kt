@@ -254,15 +254,8 @@ class App : MultiDexApplication(), Configuration.Provider, CoroutineScope {
                 if (config.devModePassword != null)
                     checkDevModePassword()
 
-                if (config.sync.enabled)
-                    SyncWorker.scheduleNext(this@App, false)
-                else
-                    SyncWorker.cancelNext(this@App)
-
-                if (config.sync.notifyAboutUpdates)
-                    UpdateWorker.scheduleNext(this@App, false)
-                else
-                    UpdateWorker.cancelNext(this@App)
+                SyncWorker.scheduleNext(this@App)
+                UpdateWorker.scheduleNext(this@App)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
                     val shortcutManager = getSystemService(ShortcutManager::class.java)
