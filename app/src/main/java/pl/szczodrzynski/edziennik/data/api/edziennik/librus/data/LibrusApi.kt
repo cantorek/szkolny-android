@@ -48,7 +48,7 @@ open class LibrusApi(open val data: DataLibrus, open val lastSync: Long?) {
                 }
                 /*
 {"Status":"Error","Code":"DeviceRegistered","Message":"This device is alerdy registered.","Resources":{"..":{"Url":"https:\/\/api.librus.pl\/2.0\/Root"}},"Url":"https:\/\/api.librus.pl\/2.0\/ChangeRegister"}*/
-                val error = if (response?.code() == 200) null else
+                val error = if (response?.code() in 200..299) null else
                     json.getString("Code") ?:
                     json.getString("Message") ?:
                     json.getString("Status") ?:
