@@ -26,6 +26,7 @@ import pl.szczodrzynski.edziennik.data.db.full.EventFull
 import pl.szczodrzynski.edziennik.data.db.full.MessageFull
 import pl.szczodrzynski.edziennik.utils.Utils
 import java.io.File
+import pl.szczodrzynski.edziennik.utils.models.Date
 
 class Podlasie(val app: App, val profile: Profile?, val loginStore: LoginStore, val callback: EdziennikCallback) : EdziennikInterface {
     companion object {
@@ -71,6 +72,7 @@ class Podlasie(val app: App, val profile: Profile?, val loginStore: LoginStore, 
 
     }
 
+    override fun sendExcuse(dateFrom: Date, dateTo: Date, lessons: List<Int>, message: String, sendNotify: Boolean) {}
     override fun sendMessage(recipients: Set<Teacher>, subject: String, text: String) {
 
     }

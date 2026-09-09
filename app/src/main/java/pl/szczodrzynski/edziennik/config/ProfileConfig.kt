@@ -31,6 +31,13 @@ class ProfileConfig(
 
     var shareByDefault by config<Boolean>(false)
 
+    /**
+     * Set once the API confirms this account has no access to the Librus
+     * e-Usprawiedliwienia module. Defaults to false, so the feature is visible
+     * right away instead of waiting for a first successful sync.
+     */
+    var librusExcusesUnavailable by config<Boolean>(false)
+
     init {
         if (dataVersion < DATA_VERSION)
             ProfileConfigMigration(this)

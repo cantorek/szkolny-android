@@ -27,6 +27,9 @@ import pl.szczodrzynski.edziennik.ui.dialogs.settings.AttendanceConfigDialog
 import pl.szczodrzynski.navlib.bottomsheet.items.BottomSheetPrimaryItem
 import pl.szczodrzynski.navlib.bottomsheet.items.BottomSheetSeparatorItem
 import kotlin.coroutines.CoroutineContext
+import pl.szczodrzynski.edziennik.data.db.enums.LoginType
+import pl.szczodrzynski.edziennik.ui.base.enums.NavTarget
+import pl.szczodrzynski.edziennik.ui.excuses.ExcuseEditorDialog
 
 class AttendanceFragment : Fragment(), CoroutineScope {
     companion object {
@@ -60,6 +63,32 @@ class AttendanceFragment : Fragment(), CoroutineScope {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         if (!isAdded) return
+
+        val profile = app.profile
+        val canUseExcuses = profile != null
+                && profile.loginStoreType == LoginType.LIBRUS
+                && profile.isParent
+                && !profile.config.librusExcusesUnavailable
+
+        if (canUseExcuses) {
+            activity.bottomSheet.prependItems(
+                    BottomSheetPrimaryItem(true)
+                            .withTitle(R.string.menu_excuses)
+                            .withIcon(CommunityMaterial.Icon.cmd_email_check_outline)
+                            .withOnClickListener(View.OnClickListener {
+                                activity.bottomSheet.close()
+                                activity.navigate(navTarget = NavTarget.EXCUSES)
+                            }),
+                    BottomSheetPrimaryItem(true)
+                            .withTitle(R.string.excuses_action_add)
+                            .withIcon(CommunityMaterial.Icon3.cmd_text_box_plus_outline)
+                            .withOnClickListener(View.OnClickListener {
+                                activity.bottomSheet.close()
+                                ExcuseEditorDialog(activity).show()
+                            }),
+                    BottomSheetSeparatorItem(true),
+            )
+        }
 
         activity.bottomSheet.prependItems(
                 BottomSheetPrimaryItem(true)

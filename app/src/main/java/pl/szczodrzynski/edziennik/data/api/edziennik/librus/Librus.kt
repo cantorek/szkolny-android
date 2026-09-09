@@ -9,6 +9,7 @@ import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.data.api.*
 import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.LibrusData
 import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.api.LibrusApiAnnouncementMarkAsRead
+import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.api.LibrusApiSendJustification
 import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.messages.LibrusMessagesGetAttachment
 import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.messages.LibrusMessagesGetMessage
 import pl.szczodrzynski.edziennik.data.api.edziennik.librus.data.messages.LibrusMessagesGetRecipientList
@@ -33,6 +34,7 @@ import pl.szczodrzynski.edziennik.ext.DAY
 import pl.szczodrzynski.edziennik.ext.HOUR
 import pl.szczodrzynski.edziennik.ext.WEEK
 import pl.szczodrzynski.edziennik.utils.Utils.d
+import pl.szczodrzynski.edziennik.utils.models.Date
 
 class Librus(val app: App, val profile: Profile?, val loginStore: LoginStore, val callback: EdziennikCallback) : EdziennikInterface {
     companion object {
@@ -103,6 +105,14 @@ class Librus(val app: App, val profile: Profile?, val loginStore: LoginStore, va
     override fun sendMessage(recipients: Set<Teacher>, subject: String, text: String) {
         login(LoginMethod.LIBRUS_MESSAGES) {
             LibrusMessagesSendMessage(data, recipients, subject, text) {
+                completed()
+            }
+        }
+    }
+
+    override fun sendExcuse(dateFrom: Date, dateTo: Date, lessons: List<Int>, message: String, sendNotify: Boolean) {
+        login(LoginMethod.LIBRUS_API) {
+            LibrusApiSendJustification(data, dateFrom, dateTo, lessons, message, sendNotify) {
                 completed()
             }
         }

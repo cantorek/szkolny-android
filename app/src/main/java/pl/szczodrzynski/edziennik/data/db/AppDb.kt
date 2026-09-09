@@ -43,8 +43,9 @@ import pl.szczodrzynski.edziennik.data.db.migration.*
     LibrusLesson::class,
     TimetableManual::class,
     Note::class,
-    Metadata::class
-], version = 100)
+    Metadata::class,
+    LibrusExcuse::class
+], version = 101)
 @TypeConverters(
         ConverterTime::class,
         ConverterDate::class,
@@ -86,6 +87,7 @@ abstract class AppDb : RoomDatabase() {
     abstract fun timetableManualDao(): TimetableManualDao
     abstract fun noteDao(): NoteDao
     abstract fun metadataDao(): MetadataDao
+    abstract fun librusExcuseDao(): LibrusExcuseDao
 
     companion object {
         @Volatile private var instance: AppDb? = null
@@ -189,6 +191,7 @@ abstract class AppDb : RoomDatabase() {
                 Migration98(),
                 Migration99(),
                 Migration100(),
+                Migration101(),
         ).allowMainThreadQueries().build()
     }
 }
