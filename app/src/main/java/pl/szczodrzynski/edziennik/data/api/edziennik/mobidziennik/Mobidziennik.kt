@@ -24,6 +24,7 @@ import pl.szczodrzynski.edziennik.data.db.full.AnnouncementFull
 import pl.szczodrzynski.edziennik.data.db.full.EventFull
 import pl.szczodrzynski.edziennik.data.db.full.MessageFull
 import pl.szczodrzynski.edziennik.utils.Utils.d
+import pl.szczodrzynski.edziennik.utils.models.Date
 
 class Mobidziennik(val app: App, val profile: Profile?, val loginStore: LoginStore, val callback: EdziennikCallback) : EdziennikInterface {
     companion object {
@@ -94,6 +95,7 @@ class Mobidziennik(val app: App, val profile: Profile?, val loginStore: LoginSto
         }
     }
 
+    override fun sendExcuse(dateFrom: Date, dateTo: Date, lessons: List<Int>, message: String, sendNotify: Boolean) {}
     override fun sendMessage(recipients: Set<Teacher>, subject: String, text: String) {
         login(LoginMethod.MOBIDZIENNIK_WEB) {
             MobidziennikWebSendMessage(data, recipients, subject, text) {

@@ -11,6 +11,8 @@ import com.mikepenz.iconics.typeface.library.community.material.CommunityMateria
 import eu.szkolny.font.SzkolnyFont
 import pl.szczodrzynski.edziennik.R
 import pl.szczodrzynski.edziennik.data.db.enums.FeatureType
+import pl.szczodrzynski.edziennik.ui.excuses.ExcusesFragment
+import pl.szczodrzynski.edziennik.data.db.entity.Profile
 import pl.szczodrzynski.edziennik.data.db.enums.MetadataType
 import pl.szczodrzynski.edziennik.ui.agenda.AgendaFragment
 import pl.szczodrzynski.edziennik.ui.announcements.AnnouncementsFragment
@@ -46,6 +48,8 @@ enum class NavTarget(
     val badgeType: MetadataType? = null,
     val featureType: FeatureType? = null,
     val devModeOnly: Boolean = false,
+    /** Extra, per-profile availability check, on top of [featureType]. */
+    val isAvailable: ((Profile) -> Boolean)? = null,
 ) {
     HOME(
         id = 1,
@@ -134,6 +138,17 @@ enum class NavTarget(
         popTo = HOME,
         badgeType = MetadataType.ANNOUNCEMENT,
         featureType = FeatureType.ANNOUNCEMENTS,
+    ),
+    EXCUSES(
+        id = 24,
+        fragmentClass = ExcusesFragment::class.java,
+        location = NavTargetLocation.DRAWER,
+        nameRes = R.string.menu_excuses,
+        icon = CommunityMaterial.Icon.cmd_email_check_outline,
+        popTo = HOME,
+        featureType = FeatureType.EXCUSES,
+        // Librus e-Usprawiedliwienia: parent accounts only, and only if the school has the module
+        isAvailable = { it.isParent && !it.config.librusExcusesUnavailable },
     ),
     NOTES(
         id = 23,

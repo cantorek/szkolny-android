@@ -18,6 +18,7 @@ import pl.szczodrzynski.edziennik.data.db.enums.LoginType
 import pl.szczodrzynski.edziennik.data.db.full.AnnouncementFull
 import pl.szczodrzynski.edziennik.data.db.full.EventFull
 import pl.szczodrzynski.edziennik.data.db.full.MessageFull
+import pl.szczodrzynski.edziennik.utils.models.Date
 
 class Demo(
     val app: App,
@@ -37,6 +38,9 @@ class Demo(
     ) = completed()
 
     override fun getMessage(message: MessageFull) =
+        completed()
+
+    override fun sendExcuse(dateFrom: Date, dateTo: Date, lessons: List<Int>, message: String, sendNotify: Boolean) =
         completed()
 
     override fun sendMessage(recipients: Set<Teacher>, subject: String, text: String) =

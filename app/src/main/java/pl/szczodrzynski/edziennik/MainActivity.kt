@@ -970,6 +970,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             navigateImpl(profile, NavTarget.HOME, args, profileChanged)
             return
         }
+        if (navTarget.isAvailable?.invoke(profile) == false) {
+            navigateImpl(profile, NavTarget.HOME, args, profileChanged)
+            return
+        }
 
         if (profileChanged) {
             if (App.profileId != profile.id)
@@ -1217,6 +1221,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             if (target.devModeOnly && !App.devMode)
                 continue
             if (target.featureType != null && !app.profile.hasUIFeature(target.featureType))
+                continue
+            if (target.isAvailable?.invoke(app.profile) == false)
                 continue
 
             when (target.location) {

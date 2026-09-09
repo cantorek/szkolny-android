@@ -22,6 +22,7 @@ import pl.szczodrzynski.edziennik.data.db.full.AnnouncementFull
 import pl.szczodrzynski.edziennik.data.db.full.EventFull
 import pl.szczodrzynski.edziennik.data.db.full.MessageFull
 import pl.szczodrzynski.edziennik.utils.Utils.d
+import pl.szczodrzynski.edziennik.utils.models.Date
 
 class Usos(
     val app: App,
@@ -65,6 +66,7 @@ class Usos(
     }
 
     override fun getMessage(message: MessageFull) {}
+    override fun sendExcuse(dateFrom: Date, dateTo: Date, lessons: List<Int>, message: String, sendNotify: Boolean) {}
     override fun sendMessage(recipients: Set<Teacher>, subject: String, text: String) {}
     override fun markAllAnnouncementsAsRead() {}
     override fun getAnnouncement(announcement: AnnouncementFull) {}
