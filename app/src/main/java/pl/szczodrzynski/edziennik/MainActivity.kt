@@ -15,14 +15,17 @@ import android.os.PowerManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.view.children
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -311,8 +314,22 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             this.unreadCounters = unreadCounters
             drawer.setUnreadCounterList(unreadCounters)
         }
-        // tapping the toolbar ("X nieprzeczytane") opens the unread item
-        navView.toolbar.setOnClickListener { launch { navigateToUnread() } }
+        // the toolbar title opens the home page, the subtitle ("X nieprzeczytane") - the unread item
+        var toolbarTouchY = 0f
+        navView.toolbar.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN)
+                toolbarTouchY = event.y
+            false
+        }
+        navView.toolbar.setOnClickListener {
+            val subtitleView = navView.toolbar.children.firstOrNull {
+                it is TextView && it.text.toString() == navView.toolbar.subtitle?.toString()
+            }
+            when {
+                subtitleView != null && toolbarTouchY >= subtitleView.top -> launch { navigateToUnread() }
+                navTarget != NavTarget.HOME -> navigate(navTarget = NavTarget.HOME)
+            }
+        }
 
         b.swipeRefreshLayout.isEnabled = true
         b.swipeRefreshLayout.setOnRefreshListener { launch { syncCurrentFeature() } }
