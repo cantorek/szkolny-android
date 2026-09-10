@@ -1469,6 +1469,7 @@
     <string name="excuses_status_send_hint">Sent to the class teacher. Awaiting a decision.</string>
     <string name="excuses_status_accept_hint">The class teacher accepted the excuse.</string>
     <string name="excuses_status_reject_hint">The class teacher rejected the excuse.</string>
+    <string name="excuses_attendance_status_format">Excuse: %s</string>
     <string name="excuses_details_title">Excuse details</string>
     <string name="excuses_details_period">Period</string>
     <string name="excuses_details_lessons">Lessons</string>

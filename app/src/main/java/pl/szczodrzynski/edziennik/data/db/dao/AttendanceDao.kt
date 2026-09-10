@@ -13,6 +13,7 @@ import eu.szkolny.selectivedao.annotation.UpdateSelective
 import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.data.db.AppDb
 import pl.szczodrzynski.edziennik.data.db.entity.Attendance
+import pl.szczodrzynski.edziennik.data.db.entity.LibrusExcuse
 import pl.szczodrzynski.edziennik.data.db.entity.Metadata
 import pl.szczodrzynski.edziennik.data.db.full.AttendanceFull
 import pl.szczodrzynski.edziennik.utils.models.Date
@@ -24,7 +25,14 @@ abstract class AttendanceDao : BaseDao<Attendance, AttendanceFull> {
         private const val QUERY = """
             SELECT 
             *, 
-            teachers.teacherName ||" "|| teachers.teacherSurname AS teacherName
+            teachers.teacherName ||" "|| teachers.teacherSurname AS teacherName,
+            (SELECT excuseStatus FROM librusExcuses
+                WHERE librusExcuses.profileId = attendances.profileId
+                AND attendanceDate BETWEEN excuseDateFrom AND excuseDateTo
+                AND (excuseLessons IS NULL OR excuseLessons = ''
+                    OR ',' || excuseLessons || ',' LIKE '%,' || attendanceLessonNumber || ',%')
+                ORDER BY excuseId DESC LIMIT 1
+            ) AS excuseStatus
             FROM attendances
             LEFT JOIN teachers USING(profileId, teacherId)
             LEFT JOIN subjects USING(profileId, subjectId)
@@ -36,9 +44,9 @@ abstract class AttendanceDao : BaseDao<Attendance, AttendanceFull> {
 
     private val selective by lazy { AttendanceDaoSelective(App.db) }
 
-    @RawQuery(observedEntities = [Attendance::class])
+    @RawQuery(observedEntities = [Attendance::class, LibrusExcuse::class])
     abstract override fun getRaw(query: SupportSQLiteQuery): LiveData<List<AttendanceFull>>
-    @RawQuery(observedEntities = [Attendance::class])
+    @RawQuery(observedEntities = [Attendance::class, LibrusExcuse::class])
     abstract override fun getOne(query: SupportSQLiteQuery): LiveData<AttendanceFull?>
 
     // SELECTIVE UPDATE
