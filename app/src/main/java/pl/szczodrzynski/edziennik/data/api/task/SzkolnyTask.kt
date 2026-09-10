@@ -72,7 +72,14 @@ class SzkolnyTask(val app: App, val syncingProfiles: List<Profile>) : IApiTask(-
         app.db.profileDao().setAllNotEmpty()
 
         // post all notifications
-        PostNotifications(app, notificationList)
+        // the same school-wide item synced for several profiles (siblings) - post it once
+        val postList = notificationList.groupBy { it.type to it.text }.values.map { same ->
+            if (same.size == 1)
+                same[0]
+            else
+                same[0].copy(profileName = same.mapNotNull { it.profileName }.distinct().joinToString(", "))
+        }
+        PostNotifications(app, postList)
         d(TAG, "SzkolnyTask: finished in ${System.currentTimeMillis()-startTime} ms.")
         taskCallback.onCompleted()
     }

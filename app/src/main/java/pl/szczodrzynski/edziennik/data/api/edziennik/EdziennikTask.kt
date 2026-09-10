@@ -45,7 +45,7 @@ open class EdziennikTask(override val profileId: Int, val request: Any) : IApiTa
         fun firstLogin(loginStore: LoginStore) = EdziennikTask(-1, FirstLoginRequest(loginStore))
         fun sync() = EdziennikTask(-1, SyncRequest())
         fun syncProfile(profileId: Int, featureTypes: Set<FeatureType>? = null, onlyEndpoints: Set<Int>? = null, arguments: JsonObject? = null) = EdziennikTask(profileId, SyncProfileRequest(featureTypes, onlyEndpoints, arguments))
-        fun syncProfileList(profileList: Set<Int>) = EdziennikTask(-1, SyncProfileListRequest(profileList))
+        fun syncProfileList(profileList: Set<Int>, featureTypes: Set<FeatureType>? = null, arguments: JsonObject? = null) = EdziennikTask(-1, SyncProfileListRequest(profileList, featureTypes, arguments))
         fun messageGet(profileId: Int, message: MessageFull) = EdziennikTask(profileId, MessageGetRequest(message))
         fun messageSend(profileId: Int, recipients: Set<Teacher>, subject: String, text: String) = EdziennikTask(profileId, MessageSendRequest(recipients, subject, text))
         fun announcementsRead(profileId: Int) = EdziennikTask(profileId, AnnouncementsReadRequest())
@@ -164,7 +164,7 @@ open class EdziennikTask(override val profileId: Int, val request: Any) : IApiTa
     data class FirstLoginRequest(val loginStore: LoginStore)
     class SyncRequest
     data class SyncProfileRequest(val featureTypes: Set<FeatureType>? = null, val onlyEndpoints: Set<Int>? = null, val arguments: JsonObject? = null)
-    data class SyncProfileListRequest(val profileList: Set<Int>)
+    data class SyncProfileListRequest(val profileList: Set<Int>, val featureTypes: Set<FeatureType>? = null, val arguments: JsonObject? = null)
     data class MessageGetRequest(val message: MessageFull)
     data class MessageSendRequest(val recipients: Set<Teacher>, val subject: String, val text: String)
     class AnnouncementsReadRequest

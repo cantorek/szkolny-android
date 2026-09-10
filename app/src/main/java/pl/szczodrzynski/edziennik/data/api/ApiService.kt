@@ -41,7 +41,22 @@ class ApiService : Service() {
 
         var lastEventTime = System.currentTimeMillis()
         var taskCancelTries = 0
+
+        /**
+         * Tasks waiting to be picked up by the service.
+         *
+         * EventBus keeps only one sticky event per class, so posting the tasks
+         * themselves would lose all but the last one if the service is not
+         * running yet (e.g. two Librus pushes arriving at once).
+         */
+        private val pendingTasks = mutableListOf<IApiTask>()
+
+        fun addPendingTasks(tasks: List<IApiTask>) = synchronized(pendingTasks) {
+            pendingTasks += tasks
+        }
     }
+
+    object PendingTasksEvent
 
     private val app by lazy { applicationContext as App }
 
@@ -243,15 +258,24 @@ class ApiService : Service() {
          | |___\ V /  __/ | | | |_| |_) | |_| \__ \
          |______\_/ \___|_| |_|\__|____/ \__,_|__*/
     @Subscribe(sticky = true, threadMode = ThreadMode.ASYNC)
-    fun onApiTask(task: IApiTask) {
-        EventBus.getDefault().removeStickyEvent(task)
+    fun onPendingTasks(event: PendingTasksEvent) {
+        EventBus.getDefault().removeStickyEvent(event)
+        val tasks = synchronized(pendingTasks) {
+            pendingTasks.toList().also { pendingTasks.clear() }
+        }
+        tasks.forEach { onApiTask(it) }
+    }
+
+    private fun onApiTask(task: IApiTask) {
         d(TAG, task.toString())
 
         if (task is EdziennikTask) {
             // fix for duplicated tasks, thank you EventBus
-            if (task.request in allTaskRequestList)
+            // the request does not contain the profile ID - two profiles may have equal requests
+            val key = task.profileId to task.request
+            if (key in allTaskRequestList)
                 return
-            allTaskRequestList += task.request
+            allTaskRequestList += key
         }
 
         if (task is EdziennikTask) {
@@ -260,7 +284,7 @@ class ApiService : Service() {
                     taskQueue += EdziennikTask.syncProfile(it)
                 }
                 is EdziennikTask.SyncProfileListRequest -> task.request.profileList.forEach {
-                    taskQueue += EdziennikTask.syncProfile(it)
+                    taskQueue += EdziennikTask.syncProfile(it, task.request.featureTypes, arguments = task.request.arguments)
                 }
                 else -> {
                     taskQueue += task

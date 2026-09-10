@@ -547,8 +547,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             NavTarget.TIMETABLE -> JsonObject("weekStart" to TimetableFragment.pageSelection?.weekStart?.stringY_m_d)
             else -> null
         }
-        EdziennikTask.syncProfile(
-            App.profileId,
+        // sync the same feature for every profile, the current one first
+        val profileIds = withContext(Dispatchers.IO) {
+            app.db.profileDao().idsForSyncNow
+        }
+        EdziennikTask.syncProfileList(
+            (listOf(App.profileId) + profileIds).toSet(),
             featureType?.let { setOf(it) },
             arguments = arguments
         ).enqueue(this)

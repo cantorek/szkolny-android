@@ -26,15 +26,7 @@ abstract class IApiTask(open val profileId: Int) {
     abstract fun prepare(app: App)
     abstract fun cancel()
 
-    fun enqueue(context: Context) {
-        Intent(context, ApiService::class.java).let {
-            if (SDK_INT >= O)
-                context.startForegroundService(it)
-            else
-                context.startService(it)
-        }
-        EventBus.getDefault().postSticky(this)
-    }
+    fun enqueue(context: Context) = enqueueAll(context, listOf(this))
 
     override fun toString(): String {
         return "IApiTask(profileId=$profileId, taskId=$taskId, profile=$profile, taskName=$taskName)"
@@ -44,15 +36,14 @@ abstract class IApiTask(open val profileId: Int) {
         fun enqueueAll(context: Context, tasks: List<IApiTask>) {
             if (tasks.isEmpty())
                 return
+            ApiService.addPendingTasks(tasks)
             Intent(context, ApiService::class.java).let {
                 if (SDK_INT >= O)
                     context.startForegroundService(it)
                 else
                     context.startService(it)
             }
-            tasks.forEach {
-                EventBus.getDefault().postSticky(it)
-            }
+            EventBus.getDefault().postSticky(ApiService.PendingTasksEvent)
         }
     }
 }
