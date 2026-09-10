@@ -78,6 +78,7 @@ import pl.szczodrzynski.edziennik.utils.Utils.dpToPx
 import pl.szczodrzynski.edziennik.utils.managers.AvailabilityManager.Error.Type
 import pl.szczodrzynski.edziennik.utils.managers.UserActionManager
 import pl.szczodrzynski.edziennik.utils.models.Date
+import pl.szczodrzynski.edziennik.utils.models.UnreadCounter
 import pl.szczodrzynski.navlib.*
 import pl.szczodrzynski.navlib.SystemBarsUtil.Companion.COLOR_HALF_TRANSPARENT
 import pl.szczodrzynski.navlib.bottomsheet.NavBottomSheet
@@ -307,8 +308,11 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         handleIntent(intent?.extras)
 
         app.db.metadataDao().unreadCounts.observe(this) { unreadCounters ->
+            this.unreadCounters = unreadCounters
             drawer.setUnreadCounterList(unreadCounters)
         }
+        // tapping the toolbar ("X nieprzeczytane") opens the unread item
+        navView.toolbar.setOnClickListener { launch { navigateToUnread() } }
 
         b.swipeRefreshLayout.isEnabled = true
         b.swipeRefreshLayout.setOnRefreshListener { launch { syncCurrentFeature() } }
@@ -477,6 +481,27 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
          |_____/ \__, |_| |_|\___|
                   __/ |
                  |__*/
+    private var unreadCounters = listOf<UnreadCounter>()
+
+    /**
+     * Open the first section with unread items of the current profile.
+     * Lesson changes open the timetable on the day of the first unread one.
+     */
+    private suspend fun navigateToUnread() {
+        val types = unreadCounters
+            .filter { it.profileId == App.profileId && it.count > 0 }
+            .map { it.thingType }
+        val target = NavTarget.values().firstOrNull { it.badgeType in types } ?: return
+        val args = if (target == NavTarget.TIMETABLE) withContext(Dispatchers.IO) {
+            app.db.timetableDao().getChangesNow(App.profileId)
+                .filter { !it.seen }
+                .mapNotNull { it.displayDate }
+                .minByOrNull { it.value }
+                ?.let { Bundle("timetableDate" to it.stringY_m_d) }
+        } else null
+        navigate(navTarget = target, args = args)
+    }
+
     private suspend fun syncCurrentFeature() {
         if (app.profile.archived) {
             MaterialAlertDialogBuilder(this)
