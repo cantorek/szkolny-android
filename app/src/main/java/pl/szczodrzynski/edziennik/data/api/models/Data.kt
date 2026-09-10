@@ -293,6 +293,8 @@ abstract class Data(val app: App, val profile: Profile?, val loginStore: LoginSt
         startTime = System.currentTimeMillis()
 
         db.timetableDao().putAll(lessonList, removeNotKept = true)
+        // a lesson change edited again gets a new ID - drop the "unread" left by the old one
+        db.metadataDao().deleteUnusedLessonChanges(profileId)
         db.gradeDao().putAll(gradeList, removeNotKept = true)
         db.eventDao().putAll(eventList, forceReplace = eventListReplace, removeNotKept = true)
         if (noticeList.isNotEmpty()) {

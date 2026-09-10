@@ -13,12 +13,14 @@ import pl.szczodrzynski.edziennik.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import pl.szczodrzynski.edziennik.data.db.entity.Attendance
+import pl.szczodrzynski.edziennik.data.db.entity.LibrusExcuse
 import pl.szczodrzynski.edziennik.data.db.enums.LoginType
 import pl.szczodrzynski.edziennik.data.db.full.AttendanceFull
 import pl.szczodrzynski.edziennik.databinding.AttendanceDetailsDialogBinding
 import pl.szczodrzynski.edziennik.ext.setTintColor
 import pl.szczodrzynski.edziennik.ext.onClick
 import pl.szczodrzynski.edziennik.ui.dialogs.base.BindingDialog
+import pl.szczodrzynski.edziennik.ui.excuses.ExcuseDetailsDialog
 import pl.szczodrzynski.edziennik.ui.excuses.ExcuseEditorDialog
 import pl.szczodrzynski.edziennik.ui.notes.setupNotesButton
 import pl.szczodrzynski.edziennik.utils.BetterLink
@@ -74,28 +76,44 @@ class AttendanceDetailsDialog(
     }
 
     /**
-     * Librus e-Usprawiedliwienia: parent accounts only, only for unexcused absences/lates,
-     * and only if this lesson is not already covered by an excuse.
+     * Librus e-Usprawiedliwienia, parent accounts only: shows the status of the excuse
+     * covering this lesson, or - for unexcused absences/lates - lets the parent write one.
      */
     private suspend fun setupExcuseButton() {
         val profile = app.profile
         val lessonNumber = attendance.lessonNumber
 
-        val canExcuse = profile != null
-            && profile.loginStoreType == LoginType.LIBRUS
-            && profile.isParent
-            && !profile.config.librusExcusesUnavailable
-            && lessonNumber != null
-            && attendance.baseType in setOf(Attendance.TYPE_ABSENT, Attendance.TYPE_BELATED)
-            && withContext(Dispatchers.IO) {
-                app.db.librusExcuseDao()
-                    .getForLessonNow(profile.id, attendance.date, lessonNumber) == null
-            }
-
-        b.excuseButton.isVisible = canExcuse
-        if (!canExcuse)
+        b.excuseButton.isVisible = false
+        if (profile == null
+            || profile.loginStoreType != LoginType.LIBRUS
+            || !profile.isParent
+            || profile.config.librusExcusesUnavailable
+            || lessonNumber == null)
             return
 
+        val excuse = withContext(Dispatchers.IO) {
+            app.db.librusExcuseDao().getForLessonNow(profile.id, attendance.date, lessonNumber)
+        }
+        if (excuse != null) {
+            val statusRes = when (excuse.status) {
+                LibrusExcuse.Status.LOCAL -> R.string.excuses_status_local
+                LibrusExcuse.Status.SEND -> R.string.excuses_status_send
+                LibrusExcuse.Status.ACCEPT -> R.string.excuses_status_accept
+                LibrusExcuse.Status.REJECT -> R.string.excuses_status_reject
+            }
+            b.excuseButton.isVisible = true
+            b.excuseButton.text = app.getString(R.string.excuses_attendance_status_format, app.getString(statusRes))
+            b.excuseButton.onClick {
+                dialog.dismiss()
+                ExcuseDetailsDialog(activity, excuse, onShowListener, onDismissListener).show()
+            }
+            return
+        }
+
+        if (attendance.baseType !in setOf(Attendance.TYPE_ABSENT, Attendance.TYPE_BELATED))
+            return
+
+        b.excuseButton.isVisible = true
         b.excuseButton.onClick {
             dialog.dismiss()
             ExcuseEditorDialog(

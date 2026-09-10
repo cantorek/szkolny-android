@@ -210,6 +210,9 @@ public abstract class MetadataDao {
     @Query("DELETE FROM metadata WHERE profileId = :profileId AND thingType = 5 AND thingId NOT IN (SELECT eventId FROM events WHERE profileId = :profileId AND eventType = -1);")
     public abstract void deleteUnusedHomework(int profileId);
 
+    @Query("DELETE FROM metadata WHERE profileId = :profileId AND thingType = 6 AND thingId NOT IN (SELECT id FROM timetable WHERE profileId = :profileId);")
+    public abstract void deleteUnusedLessonChanges(int profileId);
+
     @Query("DELETE FROM metadata WHERE profileId = :profileId AND thingType = 7 AND thingId NOT IN (SELECT announcementId FROM announcements WHERE profileId = :profileId);")
     public abstract void deleteUnusedAnnouncements(int profileId);
 

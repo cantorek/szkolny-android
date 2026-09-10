@@ -1536,6 +1536,7 @@
     <string name="excuses_status_send_hint">Wysłane do wychowawcy. Oczekuje na decyzję.</string>
     <string name="excuses_status_accept_hint">Wychowawca zaakceptował usprawiedliwienie.</string>
     <string name="excuses_status_reject_hint">Wychowawca odrzucił usprawiedliwienie.</string>
+    <string name="excuses_attendance_status_format">Usprawiedliwienie: %s</string>
     <string name="excuses_details_title">Szczegóły usprawiedliwienia</string>
     <string name="excuses_details_period">Okres</string>
     <string name="excuses_details_lessons">Lekcje</string>

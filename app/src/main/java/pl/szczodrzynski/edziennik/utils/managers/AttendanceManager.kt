@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.data.db.entity.Attendance
 import pl.szczodrzynski.edziennik.data.db.entity.AttendanceType
+import pl.szczodrzynski.edziennik.data.db.entity.LibrusExcuse
 import pl.szczodrzynski.edziennik.data.db.full.AttendanceFull
 import pl.szczodrzynski.edziennik.ext.startCoroutineTimer
 import kotlin.coroutines.CoroutineContext
@@ -60,6 +61,11 @@ class AttendanceManager(val app: App) : CoroutineScope {
                 else getAttendanceColor(typeObject.baseType)
     }
     fun getAttendanceColor(attendance: Attendance): Int {
+        // an absence already excused by the parent, waiting for the class teacher
+        if (attendance is AttendanceFull
+            && attendance.baseType == Attendance.TYPE_ABSENT
+            && attendance.excuseStatus in setOf(LibrusExcuse.Status.SEND, LibrusExcuse.Status.ACCEPT))
+            return getAttendanceColor(Attendance.TYPE_ABSENT_EXCUSED)
         return (if (useSymbols) attendance.typeColor else null)
                 ?: if (attendance.baseType == Attendance.TYPE_PRESENT_CUSTOM || !attendance.isCounted)
                     attendance.typeColor ?: 0xff64b5f6.toInt()

@@ -15,14 +15,17 @@ import android.os.PowerManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.view.children
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -78,6 +81,7 @@ import pl.szczodrzynski.edziennik.utils.Utils.dpToPx
 import pl.szczodrzynski.edziennik.utils.managers.AvailabilityManager.Error.Type
 import pl.szczodrzynski.edziennik.utils.managers.UserActionManager
 import pl.szczodrzynski.edziennik.utils.models.Date
+import pl.szczodrzynski.edziennik.utils.models.UnreadCounter
 import pl.szczodrzynski.navlib.*
 import pl.szczodrzynski.navlib.SystemBarsUtil.Companion.COLOR_HALF_TRANSPARENT
 import pl.szczodrzynski.navlib.bottomsheet.NavBottomSheet
@@ -307,7 +311,24 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         handleIntent(intent?.extras)
 
         app.db.metadataDao().unreadCounts.observe(this) { unreadCounters ->
+            this.unreadCounters = unreadCounters
             drawer.setUnreadCounterList(unreadCounters)
+        }
+        // the toolbar title opens the home page, the subtitle ("X nieprzeczytane") - the unread item
+        var toolbarTouchY = 0f
+        navView.toolbar.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN)
+                toolbarTouchY = event.y
+            false
+        }
+        navView.toolbar.setOnClickListener {
+            val subtitleView = navView.toolbar.children.firstOrNull {
+                it is TextView && it.text.toString() == navView.toolbar.subtitle?.toString()
+            }
+            when {
+                subtitleView != null && toolbarTouchY >= subtitleView.top -> launch { navigateToUnread() }
+                navTarget != NavTarget.HOME -> navigate(navTarget = NavTarget.HOME)
+            }
         }
 
         b.swipeRefreshLayout.isEnabled = true
@@ -477,6 +498,27 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
          |_____/ \__, |_| |_|\___|
                   __/ |
                  |__*/
+    private var unreadCounters = listOf<UnreadCounter>()
+
+    /**
+     * Open the first section with unread items of the current profile.
+     * Lesson changes open the timetable on the day of the first unread one.
+     */
+    private suspend fun navigateToUnread() {
+        val types = unreadCounters
+            .filter { it.profileId == App.profileId && it.count > 0 }
+            .map { it.thingType }
+        val target = NavTarget.values().firstOrNull { it.badgeType in types } ?: return
+        val args = if (target == NavTarget.TIMETABLE) withContext(Dispatchers.IO) {
+            app.db.timetableDao().getChangesNow(App.profileId)
+                .filter { !it.seen }
+                .mapNotNull { it.displayDate }
+                .minByOrNull { it.value }
+                ?.let { Bundle("timetableDate" to it.stringY_m_d) }
+        } else null
+        navigate(navTarget = target, args = args)
+    }
+
     private suspend fun syncCurrentFeature() {
         if (app.profile.archived) {
             MaterialAlertDialogBuilder(this)
@@ -547,8 +589,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             NavTarget.TIMETABLE -> JsonObject("weekStart" to TimetableFragment.pageSelection?.weekStart?.stringY_m_d)
             else -> null
         }
-        EdziennikTask.syncProfile(
-            App.profileId,
+        // sync the same feature for every profile, the current one first
+        val profileIds = withContext(Dispatchers.IO) {
+            app.db.profileDao().idsForSyncNow
+        }
+        EdziennikTask.syncProfileList(
+            (listOf(App.profileId) + profileIds).toSet(),
             featureType?.let { setOf(it) },
             arguments = arguments
         ).enqueue(this)

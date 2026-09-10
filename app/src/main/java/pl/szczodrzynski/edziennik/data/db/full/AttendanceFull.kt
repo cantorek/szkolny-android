@@ -5,6 +5,7 @@ package pl.szczodrzynski.edziennik.data.db.full
 
 import androidx.room.Relation
 import pl.szczodrzynski.edziennik.data.db.entity.Attendance
+import pl.szczodrzynski.edziennik.data.db.entity.LibrusExcuse
 import pl.szczodrzynski.edziennik.data.db.entity.Note
 import pl.szczodrzynski.edziennik.data.db.entity.Noteable
 import pl.szczodrzynski.edziennik.utils.models.Date
@@ -24,6 +25,9 @@ class AttendanceFull(
     var teacherName: String? = null
     var subjectLongName: String? = null
     var subjectShortName: String? = null
+
+    /** Status of the Librus excuse covering this lesson, if any. */
+    var excuseStatus: LibrusExcuse.Status? = null
 
     // metadata
     var seen = false
