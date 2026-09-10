@@ -37,13 +37,19 @@ abstract class IApiTask(open val profileId: Int) {
             if (tasks.isEmpty())
                 return
             ApiService.addPendingTasks(tasks)
-            Intent(context, ApiService::class.java).let {
-                if (SDK_INT >= O)
-                    context.startForegroundService(it)
-                else
-                    context.startService(it)
-            }
             EventBus.getDefault().postSticky(ApiService.PendingTasksEvent)
+            try {
+                Intent(context, ApiService::class.java).let {
+                    if (SDK_INT >= O)
+                        context.startForegroundService(it)
+                    else
+                        context.startService(it)
+                }
+            } catch (e: IllegalStateException) {
+                // the system refused to start the service from the background (Android 12+);
+                // the tasks stay pending and run the next time the service starts
+                e.printStackTrace()
+            }
         }
     }
 }

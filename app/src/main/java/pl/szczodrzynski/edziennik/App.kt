@@ -367,12 +367,20 @@ class App : MultiDexApplication(), Configuration.Provider, CoroutineScope {
                     "VulcanHebe"
                 )
 
+                // the default app is not initialized when google-services resources are
+                // missing - it must not stop the e-register tokens below from being fetched
                 try {
                     FirebaseInstanceId.getInstance().instanceId.addOnSuccessListener { instanceIdResult ->
                         val token = instanceIdResult.token
                         d("Firebase", "Got App token: $token")
                         config.sync.tokenApp = token
                     }
+                    FirebaseMessaging.getInstance().subscribeToTopic(packageName)
+                } catch (e: IllegalStateException) {
+                    e.printStackTrace()
+                }
+
+                try {
                     FirebaseInstanceId.getInstance(pushMobidziennikApp).instanceId.addOnSuccessListener { instanceIdResult ->
                         val token = instanceIdResult.token
                         d("Firebase", "Got Mobidziennik2 token: $token")
@@ -405,7 +413,6 @@ class App : MultiDexApplication(), Configuration.Provider, CoroutineScope {
                             config.sync.tokenVulcanHebeList = listOf()
                         }
                     }
-                    FirebaseMessaging.getInstance().subscribeToTopic(packageName)
                 } catch (e: IllegalStateException) {
                     e.printStackTrace()
                 }
