@@ -56,23 +56,47 @@ jobs:
       - name: Build
         run: ./gradlew :app:assembleUnofficialRelease --no-daemon
 
-      - name: Podpis APK
+      - name: Podpis i nazwy plikow
         run: |
           apk=$(ls -t app/release/*.apk | head -1)
-          echo "APK=$apk" >> "$GITHUB_ENV"
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$apksigner" verify --print-certs "$apk" || echo "::warning::APK niepodpisany"
+          # te same nazwy co lokalny make: szkolny-<wersja>.apk + staly szkolny.apk
+          version=$(basename "$apk" .apk | sed 's/^Edziennik_//')
+          cp "$apk" "szkolny-$version.apk"
+          cp "$apk" szkolny.apk
+          echo "APK=szkolny-$version.apk" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
           # na publicznym repo artefakty widzi kazdy - mapping R8 tu nie leci
           # (i tak jest wysylany do Crashlytics przy buildzie)
           name: szkolny-apk
-          path: app/release/*.apk
+          path: szkolny-*.apk
           retention-days: 30
 
-      - name: Wydanie na GitHubie
-        if: startsWith(github.ref, 'refs/tags/')
+      # push tagu = trwale wydanie pod tym tagiem
+      - name: Wydanie z tagu
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$APK" --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$APK" szkolny.apk \
+            --title "$VERSION" --generate-notes
+
+      # kazde inne uruchomienie = odswiezenie wydania kroczacego "latest",
+      # zeby link do pobrania byl zawsze ten sam
+      - name: Wydanie kroczace
+        if: github.ref_type != 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Build $VERSION, commit ${GITHUB_SHA:0:8}, $(date -u '+%Y-%m-%d %H:%M UTC')"
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest "$APK" szkolny.apk --clobber
+            gh release edit latest --title "$VERSION (latest)" --notes "$notes"
+          else
+            gh release create latest "$APK" szkolny.apk \
+              --title "$VERSION (latest)" --notes "$notes" --prerelease
+          fi
