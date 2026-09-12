@@ -5,7 +5,7 @@ buildscript {
         kotlin_version = '1.9.20'
 
         release = [
-                versionName: "4.15.1",
+                versionName: "Goku",
                 versionCode: 4150199
         ]
 

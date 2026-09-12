@@ -175,9 +175,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         val versionBadge = app.buildManager.versionBadge
         b.nightlyText.isVisible = versionBadge != null
         b.nightlyText.text = versionBadge
-        if (versionBadge != null) {
-            b.nightlyText.background.setTintColor(0xa0ff0000.toInt())
-        }
 
         navLoading = true
 

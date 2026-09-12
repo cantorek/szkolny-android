@@ -76,16 +76,10 @@ class BuildManager(val app: App) : CoroutineScope {
         else -> BuildConfig.VERSION_NAME
     }
 
+    // shown in the corner of the main activity - just the version, no build type
     val versionBadge = when {
-        isSigned && isNightly ->
-            "Nightly\n" + BuildConfig.VERSION_NAME.substringAfterLast('.')
-        isSigned && isDaily ->
-            "Daily\n" + BuildConfig.VERSION_NAME.substringAfterLast('.')
-        isDebug ->
-            "Debug\n" + BuildConfig.VERSION_BASE
-        !isOfficial ->
-            "Unofficial\n" + BuildConfig.VERSION_BASE
-        else -> null
+        isOfficial -> null
+        else -> BuildConfig.VERSION_BASE
     }
 
     val releaseType = when {

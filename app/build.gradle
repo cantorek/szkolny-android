@@ -164,7 +164,9 @@ tasks.whenTaskAdded { task ->
                     file("${projectDir}/build/outputs/bundle/${flavor}Release/")
             include "*-release.aab", "*-release.apk", "mapping.txt", "output-metadata.json"
             destinationDir file("${projectDir}/release/")
-            rename ".+?\\.(.+)", "Edziennik_${android.defaultConfig.versionName}_${flavor}." + '$1'
+            // unofficial is the everyday build - only the other flavors get tagged
+            def nameSuffix = flavor == "unofficial" ? "" : "_${flavor}"
+            rename ".+?\\.(.+)", "Edziennik_${android.defaultConfig.versionName}${nameSuffix}." + '$1'
         }
 
         task.finalizedBy(renameTaskName)

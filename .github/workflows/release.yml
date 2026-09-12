@@ -1,0 +1,76 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git-info.gradle (JGit) szuka ostatniego tagu i liczy commity,
+          # wiec potrzebuje pelnej historii i tagow
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # AGP 8.6 chce konkretnej wersji NDK (cmake w app/src/main/cpp);
+      # instalujemy jawnie, zeby nie polegac na tym, co jest na runnerze
+      - name: NDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125"
+
+      - name: Konfiguracja podpisywania
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Brak sekretu KEYSTORE_BASE64 - APK bedzie niepodpisany"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "releaseKeystore=$RUNNER_TEMP/release.jks"
+            echo "releaseKeystorePassword=$KEYSTORE_PASSWORD"
+            echo "releaseKeyAlias=$KEY_ALIAS"
+            echo "releaseKeyPassword=$KEY_PASSWORD"
+          } >> local.properties
+
+      - name: Build
+        run: ./gradlew :app:assembleUnofficialRelease --no-daemon
+
+      - name: Podpis APK
+        run: |
+          apk=$(ls -t app/release/*.apk | head -1)
+          echo "APK=$apk" >> "$GITHUB_ENV"
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" || echo "::warning::APK niepodpisany"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: szkolny-apk
+          path: |
+            app/release/*.apk
+            app/release/*.txt
+          retention-days: 30
+
+      - name: Wydanie na GitHubie
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$APK" --generate-notes
