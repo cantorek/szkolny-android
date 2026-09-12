@@ -657,6 +657,7 @@
     <string name="menu_sync_all">Alle synchronisieren</string>
     <string name="menu_template">Schablone</string>
     <string name="menu_timetable">Stundenplan</string>
+    <string name="menu_timetable_change_view">Ansicht wechseln (Tag / Woche)</string>
     <string name="menu_timetable_manual">Stundenplan-Editor</string>
     <string name="menu_web_push">Benachrichtigungen weiterleiten</string>
     <string name="messages_attachment_cannot_download">Anhang kann nicht heruntergeladen werden</string>

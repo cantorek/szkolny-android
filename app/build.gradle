@@ -7,6 +7,15 @@ apply plugin: 'com.google.firebase.crashlytics'
 
 apply from: 'git-info.gradle'
 
+// release signing, configured in local.properties (kept out of git).
+// Without it, release builds are unsigned and cannot be installed.
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+def hasReleaseKeystore = localProperties['releaseKeystore'] != null
+
 android {
     compileSdkVersion setup.compileSdk
 
@@ -41,6 +50,16 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(localProperties['releaseKeystore'])
+                storePassword localProperties['releaseKeystorePassword']
+                keyAlias localProperties['releaseKeyAlias']
+                keyPassword localProperties['releaseKeyPassword']
+            }
+        }
+    }
     buildTypes {
         debug {
             getIsDefault().set(true)
@@ -53,6 +72,9 @@ android {
             ]
         }
         release {
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

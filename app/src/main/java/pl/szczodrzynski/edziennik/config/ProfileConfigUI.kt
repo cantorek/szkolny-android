@@ -34,4 +34,5 @@ class ProfileConfigUI(base: ProfileConfig) {
     var timetableShowEvents by base.config<Boolean>(true)
     var timetableTrimHourRange by base.config<Boolean>(false)
     var timetableColorSubjectName by base.config<Boolean>(false)
+    var timetableWeekView by base.config<Boolean>(false)
 }

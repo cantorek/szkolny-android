@@ -659,6 +659,7 @@
     <string name="menu_sync_all">Synchronise all</string>
     <string name="menu_template">Template</string>
     <string name="menu_timetable">Timetable</string>
+    <string name="menu_timetable_change_view">Change view (day / week)</string>
     <string name="menu_timetable_manual">Timetable editor</string>
     <string name="menu_web_push">Forwarding notifications</string>
     <string name="messages_attachment_cannot_download">Cannot download attachment</string>

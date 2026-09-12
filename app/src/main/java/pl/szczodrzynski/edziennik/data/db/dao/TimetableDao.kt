@@ -82,6 +82,11 @@ abstract class TimetableDao : BaseDao<Lesson, LessonFull> {
                     "AND timetable.subjectId = $subjectId " +
                     "AND timetable.teamId = $teamId " +
                     "LIMIT 1")
+    fun getAllForWeek(profileId: Int, dateFrom: Date, dateTo: Date) =
+            getRaw("$QUERY WHERE timetable.profileId = $profileId AND (" +
+                    "(type != 3 AND date >= '${dateFrom.stringY_m_d}' AND date <= '${dateTo.stringY_m_d}') OR " +
+                    "((type = 3 OR type = 1) AND oldDate >= '${dateFrom.stringY_m_d}' AND oldDate <= '${dateTo.stringY_m_d}')" +
+                    ") $ORDER_BY")
     fun getBetweenDates(dateFrom: Date, dateTo: Date) =
             getRaw("$QUERY WHERE (type != 3 AND date >= '${dateFrom.stringY_m_d}' AND date <= '${dateTo.stringY_m_d}') OR ((type = 3 OR type = 1) AND oldDate >= '${dateFrom.stringY_m_d}' AND oldDate <= '${dateTo.stringY_m_d}') $ORDER_BY")
     fun getChanges(profileId: Int) =

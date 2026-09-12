@@ -62,7 +62,15 @@ class TimetableFragment : Fragment(), CoroutineScope {
         get() = job + Dispatchers.Main
 
     private var fabShown = false
+    private var weekView = false
     private val items = mutableListOf<Date>()
+
+    /**
+     * Finds the page showing [date] - the day itself, or the week containing it.
+     */
+    private fun indexOfDate(date: Date) = items
+        .indexOfFirst { it.value == (if (weekView) date.weekStart.value else date.value) }
+        .takeIf { it >= 0 } ?: 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         activity = (getActivity() as MainActivity?) ?: return null
@@ -82,7 +90,7 @@ class TimetableFragment : Fragment(), CoroutineScope {
                 ACTION_SCROLL_TO_DATE -> {
                     val dateStr = i.extras?.getString("timetableDate", null) ?: return
                     val date = Date.fromY_m_d(dateStr)
-                    b.viewPager.setCurrentItem(items.indexOf(date), true)
+                    b.viewPager.setCurrentItem(indexOfDate(date), true)
                 }
                 ACTION_RELOAD_PAGES -> {
                     b.viewPager.adapter?.notifyDataSetChanged()
@@ -122,7 +130,12 @@ class TimetableFragment : Fragment(), CoroutineScope {
         b.timetableLayout.visibility = View.VISIBLE
         b.timetableNotPublicLayout.visibility = View.GONE
 
+        weekView = app.profile.config.ui.timetableWeekView
+
         val today = Date.getToday().value
+        // the value of the page showing today - a date or its week's Monday
+        val currentPageValue =
+            if (weekView) Date.getToday().weekStart.value else today
         var startHour = DEFAULT_START_HOUR
         var endHour = DEFAULT_END_HOUR
         val deferred = async(Dispatchers.Default) {
@@ -130,10 +143,19 @@ class TimetableFragment : Fragment(), CoroutineScope {
 
             val monthDayCount = listOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 
-            val yearStart = app.profile.dateSemester1Start.clone() ?: return@async
+            val yearStart = if (weekView)
+                app.profile.dateSemester1Start.weekStart
+            else
+                app.profile.dateSemester1Start.clone() ?: return@async
             val yearEnd = app.profile.dateYearEnd
+
             while (yearStart.value <= yearEnd.value) {
                 items += yearStart.clone()
+                if (weekView) {
+                    // one page per week - every item is a Monday
+                    yearStart.stepForward(0, 0, 7)
+                    continue
+                }
                 var maxDays = monthDayCount[yearStart.month-1]
                 if (yearStart.month == 2 && yearStart.isLeap)
                     maxDays++
@@ -160,7 +182,8 @@ class TimetableFragment : Fragment(), CoroutineScope {
             parentFragmentManager,
                 items,
                 startHour,
-                endHour
+                endHour,
+                weekView
         )
         b.viewPager.offscreenPageLimit = 1
         b.viewPager.adapter = pagerAdapter
@@ -178,7 +201,7 @@ class TimetableFragment : Fragment(), CoroutineScope {
 
             override fun onPageSelected(position: Int) {
                 pageSelection = items[position]
-                activity.navView.bottomBar.fabEnable = items[position].value != today
+                activity.navView.bottomBar.fabEnable = items[position].value != currentPageValue
                 if (activity.navView.bottomBar.fabEnable && !fabShown) {
                     activity.gainAttentionFAB()
                     fabShown = true
@@ -190,7 +213,10 @@ class TimetableFragment : Fragment(), CoroutineScope {
         val selectedDate = arguments?.getString("timetableDate", "")?.let { if (it.isBlank()) null else Date.fromY_m_d(it) }
 
         b.tabLayout.setUpWithViewPager(b.viewPager)
-        b.tabLayout.setCurrentItem(items.indexOfFirst { it.value == selectedDate?.value ?: today }, false)
+        val selectedIndex = indexOfDate(selectedDate ?: Date.getToday())
+        b.tabLayout.setCurrentItem(selectedIndex, false)
+        // onPageSelected is not called for the initial position 0
+        pageSelection = items.getOrNull(selectedIndex)
 
         activity.navView.bottomSheet.prependItems(
                 BottomSheetPrimaryItem(true)
@@ -221,9 +247,7 @@ class TimetableFragment : Fragment(), CoroutineScope {
                                 .apply {
                                     addOnPositiveButtonClickListener { millis ->
                                         val dateSelected = Date.fromMillisUtc(millis)
-                                        val index = items.indexOfFirst { it == dateSelected }
-                                        if (index != -1)
-                                            b.tabLayout.setCurrentItem(index, true)
+                                        b.tabLayout.setCurrentItem(indexOfDate(dateSelected), true)
                                     }
                                 }
                                 .show(activity.supportFragmentManager, TAG)
@@ -244,6 +268,15 @@ class TimetableFragment : Fragment(), CoroutineScope {
                             activity.bottomSheet.close()
                             GenerateBlockTimetableDialog(activity)
                         }),
+                BottomSheetPrimaryItem(true)
+                        .withTitle(R.string.menu_timetable_change_view)
+                        .withIcon(if (weekView) CommunityMaterial.Icon3.cmd_view_day_outline
+                                  else CommunityMaterial.Icon3.cmd_view_week_outline)
+                        .withOnClickListener {
+                            activity.bottomSheet.close()
+                            app.profile.config.ui.timetableWeekView = !weekView
+                            activity.reloadTarget()
+                        },
                 BottomSheetPrimaryItem(true)
                         .withTitle(R.string.menu_timetable_config)
                         .withIcon(CommunityMaterial.Icon.cmd_cog_outline)
@@ -266,7 +299,7 @@ class TimetableFragment : Fragment(), CoroutineScope {
         activity.navView.bottomBar.fabExtendedText = getString(R.string.timetable_today)
         activity.navView.bottomBar.fabIcon = SzkolnyFont.Icon.szf_calendar_today_outline
         activity.navView.setFabOnClickListener(View.OnClickListener {
-            b.tabLayout.setCurrentItem(items.indexOfFirst { it.value == today }, true)
+            b.tabLayout.setCurrentItem(indexOfDate(Date.getToday()), true)
         })
     }}
 

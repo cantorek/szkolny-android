@@ -15,7 +15,8 @@ class TimetablePagerAdapter(
         fragmentManager: FragmentManager,
         private val items: List<Date>,
         private val startHour: Int,
-        private val endHour: Int
+        private val endHour: Int,
+        private val weekView: Boolean = false
 ) : LazyPagerAdapter(fragmentManager, null) {
     companion object {
         private const val TAG = "TimetablePagerAdapter"
@@ -26,6 +27,13 @@ class TimetablePagerAdapter(
     private val weekEnd by lazy { weekStart.clone().stepForward(0, 0, 6) }
 
     override fun getPage(position: Int): LazyFragment {
+        if (weekView) {
+            return TimetableWeekFragment().apply {
+                arguments = Bundle().apply {
+                    putInt("weekStart", items[position].value)
+                }
+            }
+        }
         return TimetableDayFragment().apply {
             arguments = Bundle().apply {
                 putInt("date", items[position].value)
@@ -41,6 +49,8 @@ class TimetablePagerAdapter(
 
     override fun getPageTitle(position: Int): CharSequence {
         val date = items[position]
+        if (weekView)
+            return "${date.stringDm} – ${date.weekEnd.stringDm}"
         val pageTitle = StringBuilder(Week.getFullDayName(date.weekDay))
         if (date > weekEnd || date < weekStart) {
             pageTitle.append(", ").append(date.stringDm)

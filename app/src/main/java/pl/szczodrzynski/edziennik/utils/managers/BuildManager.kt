@@ -13,8 +13,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.Request
 import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.BuildConfig
 import pl.szczodrzynski.edziennik.R
@@ -24,14 +22,11 @@ import pl.szczodrzynski.edziennik.ext.Intent
 import pl.szczodrzynski.edziennik.ext.asBoldSpannable
 import pl.szczodrzynski.edziennik.ext.asColoredSpannable
 import pl.szczodrzynski.edziennik.ext.concat
-import pl.szczodrzynski.edziennik.ext.getJsonObject
-import pl.szczodrzynski.edziennik.ext.getString
 import pl.szczodrzynski.edziennik.ext.isNotNullNorBlank
 import pl.szczodrzynski.edziennik.ext.join
 import pl.szczodrzynski.edziennik.ext.md5
 import pl.szczodrzynski.edziennik.ext.resolveAttr
 import pl.szczodrzynski.edziennik.ext.resolveColor
-import pl.szczodrzynski.edziennik.ext.toJsonObject
 import pl.szczodrzynski.edziennik.ui.base.BuildInvalidActivity
 import pl.szczodrzynski.edziennik.utils.Utils
 import pl.szczodrzynski.edziennik.utils.Utils.d
@@ -198,40 +193,6 @@ class BuildManager(val app: App) : CoroutineScope {
         }
     }
 
-    private suspend fun validateRepo(
-        repo: String,
-        commitHash: String
-    ) = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("https://api.github.com/repos/$repo/git/commits/$commitHash")
-            .header("Accept", "application/vnd.github.v3+json")
-            .build()
-
-        val call = app.http.newCall(request)
-
-        val response = runCatching {
-            call.execute()
-        }.getOrNull() ?: return@withContext false
-
-        if (response.code() != 200)
-            return@withContext false
-
-        val json = runCatching {
-            response.body()?.string()?.toJsonObject()
-        }.getOrNull() ?: return@withContext false
-
-        val sha = json.getString("sha")
-        if (sha != commitHash)
-            return@withContext false
-
-        val author = json.getJsonObject("author") ?: return@withContext false
-        val name = author.getString("name")
-        val email = author.getString("email")
-        gitAuthor = "$name <$email>"
-
-        return@withContext true
-    }
-
     fun validateBuild(activity: AppCompatActivity) {
         launch {
             gitRemote = getRemoteRepo()
@@ -247,60 +208,7 @@ class BuildManager(val app: App) : CoroutineScope {
                 return@launch
             }
 
-            // probably no git repository, disabled on debug
-            if (gitRemote == null && !isDebug) {
-                invalidateBuild(activity, null, InvalidBuildReason.NO_REMOTE_REPO)
-                return@launch
-            }
-            if (gitHash == null) {
-                invalidateBuild(activity, null, InvalidBuildReason.NO_COMMIT_HASH)
-                return@launch
-            }
-
-            // debug build, invalidate once
-            if (isDebug) {
-                if (app.config.validation != "debug${Signing.appCertificate}".md5()) {
-                    app.config.validation = "debug${Signing.appCertificate}".md5()
-                    invalidateBuild(activity, null, InvalidBuildReason.DEBUG)
-                }
-                return@launch
-            }
-
-            // release version with unstaged changes
-            if (gitIsDirty) {
-                invalidateBuild(activity, null, InvalidBuildReason.UNSTAGED_CHANGES)
-                return@launch
-            }
-
-            val validation = Signing.appCertificate + gitHash + gitRemotes?.join(";")
-
-            // app already validated
-            if (app.config.validation?.substringBefore(":") == validation.md5()){
-                gitAuthor = app.config.validation?.substringAfter(":")
-                return@launch
-            }
-
-            val dialog = MaterialAlertDialogBuilder(activity)
-                .setTitle(R.string.please_wait)
-                .setMessage(R.string.build_validate_progress)
-                .setCancelable(false)
-                .show()
-
-            val isRepoValid = if (app.config.validation == "invalid$gitRemote$gitHash".md5())
-                false
-            else
-                validateRepo(gitRemote!!, gitHash)
-
-            // release build with no public repository or not published changes
-            if (!isRepoValid) {
-                app.config.validation = "invalid$gitRemote$gitHash".md5()
-                invalidateBuild(activity, dialog, InvalidBuildReason.REMOTE_NO_COMMIT)
-                return@launch
-            }
-
-            // release, unofficial, published build
-            app.config.validation = validation.md5() + ":" + gitAuthor
-            invalidateBuild(activity, dialog, InvalidBuildReason.VALID)
+            // self-built, unofficial package - nothing to validate
         }
     }
 

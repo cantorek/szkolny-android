@@ -19,6 +19,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import androidx.core.graphics.ColorUtils
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
@@ -35,6 +36,7 @@ import pl.szczodrzynski.edziennik.data.db.enums.FeatureType
 import pl.szczodrzynski.edziennik.data.db.full.LessonFull
 import pl.szczodrzynski.edziennik.databinding.DialogGenerateBlockTimetableBinding
 import pl.szczodrzynski.edziennik.ext.*
+import pl.szczodrzynski.edziennik.utils.Colors
 import pl.szczodrzynski.edziennik.utils.models.Date
 import pl.szczodrzynski.edziennik.utils.models.Time
 import pl.szczodrzynski.edziennik.utils.models.Week
@@ -222,6 +224,12 @@ class GenerateBlockTimetableDialog(
 
         dialog.dismiss()
 
+        // lesson change colors, inherited from the app's theme
+        val colorCancelled = R.attr.timetable_lesson_cancelled_color.resolveAttr(activity)
+        val colorChange = R.attr.timetable_lesson_change_color.resolveAttr(activity)
+        val colorShiftedSource = R.attr.timetable_lesson_shifted_source_color.resolveAttr(activity)
+        val colorShiftedTarget = R.attr.timetable_lesson_shifted_target_color.resolveAttr(activity)
+
         val uri = withContext(Dispatchers.Default) {
 
             val diff = Time.diff(maxTime, minTime)
@@ -263,6 +271,21 @@ class GenerateBlockTimetableDialog(
                 val teacherName: TextView = layout.findViewById(R.id.timetableItemTeacherName)
                 val teamName: TextView = layout.findViewById(R.id.timetableItemTeamName)
 
+                val name = lesson.displaySubjectName ?: ""
+
+                subjectName.text = when (lesson.type) {
+                    Lesson.TYPE_CANCELLED, Lesson.TYPE_SHIFTED_SOURCE -> name.asStrikethroughSpannable()
+                    else -> name
+                }
+                classroomName.text = lesson.displayClassroom ?: ""
+                teacherName.text = lesson.displayTeacherName ?: ""
+                teamName.text = lesson.displayTeamName ?: ""
+
+                if (!showTeachersNames) teacherName.visibility = View.GONE
+
+                if (lesson.type == Lesson.TYPE_CHANGE || lesson.type == Lesson.TYPE_SHIFTED_TARGET)
+                    subjectName.setTypeface(null, Typeface.BOLD_ITALIC)
+
                 if (noColors) {
                     card.setCardBackgroundColor(Color.WHITE)
                     card.cardElevation = 0f
@@ -271,29 +294,23 @@ class GenerateBlockTimetableDialog(
                     classroomName.setTextColor(0xffaaaaaa.toInt())
                     teacherName.setTextColor(0xffaaaaaa.toInt())
                     teamName.setTextColor(0xffaaaaaa.toInt())
-                }
-
-                subjectName.text = lesson.displaySubjectName ?: ""
-                classroomName.text = lesson.displayClassroom ?: ""
-                teacherName.text = lesson.displayTeacherName ?: ""
-                teamName.text = lesson.displayTeamName ?: ""
-
-                if (!showTeachersNames) teacherName.visibility = View.GONE
-
-                when (lesson.type) {
-                    Lesson.TYPE_NORMAL -> {
+                } else {
+                    // the lesson change type takes precedence over the subject color
+                    val cardColor = when (lesson.type) {
+                        Lesson.TYPE_CANCELLED -> colorCancelled
+                        Lesson.TYPE_SHIFTED_SOURCE -> colorShiftedSource
+                        Lesson.TYPE_SHIFTED_TARGET -> colorShiftedTarget
+                        Lesson.TYPE_CHANGE -> colorChange
+                        else -> lesson.color ?: Colors.stringToMaterialColorCRC(name)
                     }
-                    Lesson.TYPE_CANCELLED, Lesson.TYPE_SHIFTED_SOURCE -> {
-                        card.setCardBackgroundColor(Color.BLACK)
-                        subjectName.setTextColor(Color.WHITE)
-                        subjectName.text = lesson.displaySubjectName?.asStrikethroughSpannable()
-                                ?: ""
-                    }
-                    else -> {
-                        card.setCardBackgroundColor(0xff234158.toInt())
-                        subjectName.setTextColor(Color.WHITE)
-                        subjectName.setTypeface(null, Typeface.BOLD_ITALIC)
-                    }
+                    card.setCardBackgroundColor(cardColor)
+
+                    val isLight = ColorUtils.calculateLuminance(cardColor) > 0.5
+                    subjectName.setTextColor(if (isLight) Color.BLACK else Color.WHITE)
+                    val secondary = if (isLight) 0xff555555.toInt() else 0xffdddddd.toInt()
+                    classroomName.setTextColor(secondary)
+                    teacherName.setTextColor(secondary)
+                    teamName.setTextColor(secondary)
                 }
 
                 layout.isDrawingCacheEnabled = true
