@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # repo jest publiczne - build odpala tylko wlasciciel
+    if: github.actor == github.repository_owner
 
     steps:
       - uses: actions/checkout@v4
@@ -63,10 +65,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          # na publicznym repo artefakty widzi kazdy - mapping R8 tu nie leci
+          # (i tak jest wysylany do Crashlytics przy buildzie)
           name: szkolny-apk
-          path: |
-            app/release/*.apk
-            app/release/*.txt
+          path: app/release/*.apk
           retention-days: 30
 
       - name: Wydanie na GitHubie

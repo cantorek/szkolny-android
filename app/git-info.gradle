@@ -71,6 +71,10 @@ private static def getLastTag(Repository repo, Git git, Ref head) {
         revCount++
     }
 
+    // no tag reachable from HEAD (a fresh fork, or a shallow CI clone)
+    if (commitTags == null)
+        return [head.getObjectId().name, "untagged", revCount]
+
     return commitTags.last()
 }
 
