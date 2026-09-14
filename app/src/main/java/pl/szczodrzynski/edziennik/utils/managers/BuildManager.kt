@@ -4,7 +4,9 @@
 
 package pl.szczodrzynski.edziennik.utils.managers
 
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.text.TextUtils
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -76,12 +78,6 @@ class BuildManager(val app: App) : CoroutineScope {
         else -> BuildConfig.VERSION_NAME
     }
 
-    // shown in the corner of the main activity - just the version, no build type
-    val versionBadge = when {
-        isOfficial -> null
-        else -> BuildConfig.VERSION_BASE
-    }
-
     val releaseType = when {
         isNightly || isDaily -> Update.Type.NIGHTLY
         BuildConfig.VERSION_BASE.endsWith("-dev") -> Update.Type.DEV
@@ -90,7 +86,11 @@ class BuildManager(val app: App) : CoroutineScope {
         else -> Update.Type.RELEASE
     }
 
-    fun showVersionDialog(activity: AppCompatActivity) {
+    /**
+     * Build details as "label:\nvalue" blocks - shown in the version dialog
+     * and in the Help & feedback screen.
+     */
+    fun getVersionInfo(activity: Context): CharSequence {
         val yes = activity.getString(R.string.yes)
         val no = activity.getString(R.string.no)
 
@@ -135,10 +135,14 @@ class BuildManager(val app: App) : CoroutineScope {
                 "\t" + gitUnstaged?.join("\n\t"),
             R.string.build_tag to gitTag,
             R.string.build_rev_count to gitRevCount,
-            R.string.build_remote to gitRemotes?.join("\n")
+            R.string.build_remote to gitRemotes?.join("\n"),
+            R.string.build_version_code to BuildConfig.VERSION_CODE.toString(),
+            R.string.build_variant to "$buildFlavor / $buildType",
+            R.string.build_android to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            R.string.build_device to "${Build.MANUFACTURER} ${Build.MODEL}"
         )
 
-        val message = fields.map { (key, value) ->
+        return fields.map { (key, value) ->
             TextUtils.concat(
                 activity
                     .getString(key)
@@ -148,10 +152,12 @@ class BuildManager(val app: App) : CoroutineScope {
                 value
             )
         }.concat("\n\n")
+    }
 
+    fun showVersionDialog(activity: AppCompatActivity) {
         MaterialAlertDialogBuilder(activity)
             .setTitle(R.string.build_details)
-            .setMessage(message)
+            .setMessage(getVersionInfo(activity))
             .setPositiveButton(R.string.ok, null)
             .setNeutralButton(R.string.build_dialog_open_repo) { _, _ ->
                 val url = if (gitRemote == null)

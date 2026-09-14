@@ -31,20 +31,6 @@
             </pl.szczodrzynski.edziennik.utils.SwipeRefreshLayoutNoTouch>
 
         </pl.szczodrzynski.navlib.NavView>
-
-        <TextView
-            android:id="@+id/nightlyText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_marginHorizontal="48dp"
-            android:layout_marginVertical="8dp"
-            android:fontFamily="sans-serif-light"
-            android:gravity="center"
-            android:padding="4dp"
-            android:textColor="?android:textColorSecondary"
-            android:textSize="12sp"
-            tools:text="4.15.1" />
     </FrameLayout>
 
 </layout>

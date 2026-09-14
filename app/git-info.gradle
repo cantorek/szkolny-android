@@ -102,6 +102,13 @@ private def buildGitInfo() {
     def tagName = tag[1]
     def tagRevCount = tag[2]
 
+    // total commits - unlike revCount it does not reset when a tag lands on HEAD,
+    // so it can drive versionCode
+    def commitCount = 0
+    for (RevCommit commit : git.log().call()) {
+        commitCount++
+    }
+
     def result = [
             hash            : head.objectId.name,
             branch          : repo.branch,
@@ -110,6 +117,7 @@ private def buildGitInfo() {
             unstaged        : status.uncommittedChanges.join("; "),
             tag             : tagName,
             revCount        : tagRevCount,
+            commitCount     : commitCount,
             version         : """$tagName-$tagRevCount-g${head.objectId.name.substring(0, 8)}""" + (dirty ? ".dirty" : ""),
             versionSuffix   : """${repo.branch.replace("/", "_")}""" + (dirty ? ".dirty" : "")
     ]

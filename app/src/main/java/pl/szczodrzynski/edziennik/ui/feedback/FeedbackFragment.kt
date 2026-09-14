@@ -1,6 +1,9 @@
 package pl.szczodrzynski.edziennik.ui.feedback
 
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -149,6 +152,16 @@ class FeedbackFragment : Fragment(), CoroutineScope {
 
         b.faqText.setOnClickListener { openFaq() }
         b.faqButton.setOnClickListener { openFaq() }
+
+        val versionInfo = app.buildManager.getVersionInfo(activity)
+        b.versionInfo.text = versionInfo
+        b.versionCopyButton.onClick {
+            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(
+                ClipData.newPlainText(getString(R.string.build_details), versionInfo.toString())
+            )
+            Toast.makeText(activity, R.string.build_copied, Toast.LENGTH_SHORT).show()
+        }
 
         with(chatView) {
             setLeftBubbleColor(Utils.getAttr(activity, R.attr.colorSurface))

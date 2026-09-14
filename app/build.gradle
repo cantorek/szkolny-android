@@ -26,7 +26,8 @@ android {
         minSdkVersion setup.minSdk
         targetSdkVersion setup.targetSdk
 
-        versionCode release.versionCode
+        // rosnie z kazdym commitem, zeby aktualizacje w ogole mialy sie do czego porownac
+        versionCode release.versionCode + ((gitInfo.commitCount ?: 0) as Integer)
         versionName release.versionName
 
         buildConfigField "java.util.Map<String, String>", "GIT_INFO", gitInfoMap

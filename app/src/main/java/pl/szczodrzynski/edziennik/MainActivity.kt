@@ -162,19 +162,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
                 view.setPadding(bars.left, bars.top, bars.right, 0)
                 b.navView.bottomSheet.setPadding(0, 0, 0, bars.bottom)
                 b.swipeRefreshLayout.setPadding(0, 0, 0, bars.bottom)
-                b.nightlyText.updateLayoutParams<FrameLayout.LayoutParams> {
-                    this.bottomMargin = 8.dp + bars.bottom
-                }
                 insets
             }
         }
 
         mainSnackbar.setCoordinator(b.navView.coordinator, b.navView.bottomBar)
         errorSnackbar.setCoordinator(b.navView.coordinator, b.navView.bottomBar)
-
-        val versionBadge = app.buildManager.versionBadge
-        b.nightlyText.isVisible = versionBadge != null
-        b.nightlyText.text = versionBadge
 
         navLoading = true
 

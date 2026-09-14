@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import org.greenrobot.eventbus.EventBus
 import pl.szczodrzynski.edziennik.App
 import pl.szczodrzynski.edziennik.BuildConfig
@@ -24,6 +25,13 @@ import kotlin.coroutines.CoroutineContext
 class UpdateManager(val app: App) : CoroutineScope {
     companion object {
         private const val TAG = "UpdateManager"
+
+        /**
+         * Own update feed - a JSON matching [Update], published next to the APK.
+         * The szkolny.eu channel is not used: it serves officially signed builds,
+         * which cannot be installed over this one.
+         */
+        const val UPDATE_URL = "https://dom.wycislak.pl/plikos/update.json"
     }
 
     private val job = Job()
@@ -56,16 +64,29 @@ class UpdateManager(val app: App) : CoroutineScope {
      * @return [Result] containing a newer update, or null if not available
      */
     fun checkNowSync(
-        maxChannel: Update.Type,
+        @Suppress("UNUSED_PARAMETER") maxChannel: Update.Type,
         notify: Boolean,
     ): Result<Update?> {
-        val channel = minOf(app.buildManager.releaseType, maxChannel)
-        val update = app.api.runCatching({
-            getUpdate(channel).firstOrNull()
-        }, {
-            return Result.failure(it)
-        })
+        // the feed holds a single build - there are no release channels here
+        val update = try {
+            fetchUpdate()
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
         return Result.success(process(update, notify))
+    }
+
+    private fun fetchUpdate(): Update? {
+        val request = Request.Builder()
+            .url(UPDATE_URL)
+            .build()
+
+        app.http.newCall(request).execute().use { response ->
+            if (response.code() != 200)
+                return null
+            val body = response.body()?.string() ?: return null
+            return app.gson.fromJson(body, Update::class.java)
+        }
     }
 
     /**
