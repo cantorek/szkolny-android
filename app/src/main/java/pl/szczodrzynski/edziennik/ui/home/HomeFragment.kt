@@ -143,15 +143,7 @@ class HomeFragment : Fragment(), CoroutineScope {
                         .withIcon(Icon.cmd_eye_check_outline)
                         .withOnClickListener(OnClickListener {
                             activity.bottomSheet.close()
-                            launch { withContext(Dispatchers.Default) {
-                                if (!app.data.uiConfig.enableMarkAsReadAnnouncements) {
-                                    app.db.metadataDao().setAllSeenExceptMessagesAndAnnouncements(App.profileId, true)
-                                } else {
-                                    app.db.metadataDao().setAllSeenExceptMessages(App.profileId, true)
-                                }
-                            } }
-
-                            Toast.makeText(activity, R.string.main_menu_mark_as_read_success, Toast.LENGTH_SHORT).show()
+                            activity.markAllAsRead(App.profileId)
                         })
         )
 

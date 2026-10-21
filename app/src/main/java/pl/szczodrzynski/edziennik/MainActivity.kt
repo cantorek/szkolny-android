@@ -53,6 +53,9 @@ import pl.szczodrzynski.edziennik.data.api.szkolny.response.Update
 import pl.szczodrzynski.edziennik.data.db.entity.Message
 import pl.szczodrzynski.edziennik.data.db.entity.Metadata.*
 import pl.szczodrzynski.edziennik.data.db.entity.Profile
+import pl.szczodrzynski.edziennik.data.db.enums.LoginType
+import pl.szczodrzynski.edziennik.data.db.enums.MetadataType
+import pl.szczodrzynski.edziennik.data.api.task.IApiTask
 import pl.szczodrzynski.edziennik.data.db.enums.FeatureType
 import pl.szczodrzynski.edziennik.databinding.ActivitySzkolnyBinding
 import pl.szczodrzynski.edziennik.ext.*
@@ -458,26 +461,45 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
                 EdziennikTask.sync().enqueue(this)
             }
             NavTarget.PROFILE_MARK_AS_READ -> {
-                launch {
-                    withContext(Dispatchers.Default) {
-                        app.db.profileDao().allNow.forEach { profile ->
-                            if (!profile.getAppData().uiConfig.enableMarkAsReadAnnouncements)
-                                app.db.metadataDao()
-                                    .setAllSeenExceptMessagesAndAnnouncements(profile.id, true)
-                            else
-                                app.db.metadataDao().setAllSeenExceptMessages(profile.id, true)
-                        }
-                    }
-                    Toast.makeText(this@MainActivity,
-                        R.string.main_menu_mark_as_read_success,
-                        Toast.LENGTH_SHORT).show()
-                }
+                markAllAsRead()
             }
             else -> {
                 navigate(navTarget = item)
             }
         }
         false
+    }
+
+    /**
+     * Mark everything as read, also in Librus: unread messages are
+     * fetched (which marks them as read) and announcements are marked.
+     * Marks all profiles if [profileId] is null.
+     */
+    fun markAllAsRead(profileId: Int? = null) {
+        launch {
+            val tasks = withContext(Dispatchers.Default) {
+                val profiles = if (profileId == null)
+                    app.db.profileDao().allNow
+                else
+                    listOfNotNull(app.db.profileDao().getByIdNow(profileId))
+                profiles.flatMap { profile ->
+                    val tasks = mutableListOf<IApiTask>()
+                    if (profile.loginStoreType == LoginType.LIBRUS) {
+                        app.db.messageDao().getAllNow(profile.id)
+                            .filter { it.isReceived && !it.seen }
+                            .forEach { tasks += EdziennikTask.messageGet(profile.id, it) }
+                        if (app.db.metadataDao().countUnseenNow(profile.id, MetadataType.ANNOUNCEMENT) > 0)
+                            tasks += EdziennikTask.announcementsRead(profile.id)
+                    }
+                    app.db.metadataDao().setAllSeen(profile.id, true)
+                    tasks
+                }
+            }
+            IApiTask.enqueueAll(this@MainActivity, tasks)
+            Toast.makeText(this@MainActivity,
+                R.string.main_menu_mark_as_read_success,
+                Toast.LENGTH_SHORT).show()
+        }
     }
 
     /*     _____
